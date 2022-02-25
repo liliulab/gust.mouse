@@ -5,7 +5,7 @@ GUST predicts oncogenes (OGs), tumor suppressor gens (TSGs) and passenger genes 
 ## Install. 
 ````
 # Be patient. It may take some time.
- devtools::install_github('liliulab/gust-mouse')
+ devtools::install_github('liliulab/gust.mouse')
 ````
 
 ## Usage
