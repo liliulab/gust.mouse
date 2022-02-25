@@ -1,5 +1,4 @@
-# gust-mouse
-## GUST-mouse (Genes Under Selection in Tumors, rebuilt for mouse)
+## GUST.mouse (Genes Under Selection in Tumors, rebuilt for mouse)
 This is the GUST model rebuilt to make predictions in mouse.
 GUST predicts oncogenes (OGs), tumor suppressor gens (TSGs) and passenger genes (PGs) using somatic SNVs detected in a collection of tumors. It can classify single genes from targetted sequencing or multiple genes from whole-exome sequencing. 
 

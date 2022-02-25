@@ -1,0 +1,4 @@
+cds.id	symbol	syn.obs	missense.obs	nonsense.obs	fs.obs	inframe.obs	max.missense	max.nonsense	max.prot	length	total.mut.cnt	prot.mut.cnt	total.mut.pct	prot.mut.pct	score.max_cnt	score.peak	score.summit	max.peak.cnt	multiple.cnt	summit.start	summit.end	wt.stop	fitch	fitch.summit	cnt.disabling	wt.stop.pct	syn.obs.pct	missense.obs.pct	truncating.obs.pct	ensembl.gene.id
+ENSMUST00000042172	Tmem247	0	0	0	0	6	2.85	0	2.85	211.666666666667	6	0	0.31496062992126	0	0	0	0	0	0	0	0	0	0.241	0.241	0	0	0	0	0	ENSMUSG00000037689
+ENSMUST00000145093	Ctnnb1	0	8	0	1	2	5	-1.39	3.61	174	11	9	0.70242656449553	0.574712643678161	5	1	1	8	8	34	45	39	0	0	1	0.224137931034483	0	0.727272727272727	0.0909090909090909	ENSMUSG00000006932
+ENSMUST00000171247	Trp53	0	0	0	5	1	-0.21	0.92	0.71	382	6	5	0.174520069808028	0.14543339150669	0	0	0	0	0	0	0	188.4	0.241	0.241	5	0.493193717277487	0	0	0.833333333333333	ENSMUSG00000059552
