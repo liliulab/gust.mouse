@@ -14,7 +14,7 @@ library(gust.mouse)
 
 # to make predictions. 
 # A sample input can be downloaded from the "examples" folder. 
- gust.mouse(input.file.name='./examples/SM.somatic.maf.gz', output.folder='./examples/', output.prefix='SM');
+ gust.mouse(input.file.name='./examples/ACC.mm.txt', output.folder='./examples/', output.prefix='ACC.mm');
 
 # Compare outputs from the above command with files in the "examples" folder.
  
