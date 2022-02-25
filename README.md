@@ -12,7 +12,7 @@ GUST predicts oncogenes (OGs), tumor suppressor gens (TSGs) and passenger genes 
 ```` 
 library(gust.mouse)
 
-# To make predictions, simply run the gust.mouse() function. 
+# Run the gust.mouse() function to make predictions.
 # A sample input "ACC.mm.txt" file can be downloaded from the "examples" folder. 
 # In your R environment, suppose you have saved the sample file in the "./examples/" folder in your current working directory.
 # You can execute the following command to make predictions.
