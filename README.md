@@ -19,7 +19,7 @@ library(gust.mouse)
 # Compare outputs from the above command with files in the "examples" folder.
  
 # to plot distribution
- m=plot.this.one('TP53', './examples/', 'SM') 
+ m=plot.this.one('Ctnnb1', './examples/', 'ACC.mm') 
 ````
 
 The input file needs to be in the VCF format. Required fields include Tumor_Sample_Barcode, Chromosome, Start_Position, dbSNP_RS, Reference_Allele, Tumor_Seq_Allele2, FILTER, One_Consequence, Hugo_Symbol, Gene, Feature, ENSP, HGVSc, HGVSp_Short, Amino_acids, Codons, ENSP, RefSeq, and Entrez_Gene_Id. We recommend using SnpEff to annotate somatic variants, which will generate a VCF file containing the required fields.
