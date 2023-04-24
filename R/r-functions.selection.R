@@ -151,7 +151,7 @@ parse.aggregated.mut <- function(input.file.name, output.folder='', output.prefi
 		mut.filtered$mut_type <- ifelse(mut.filtered$type == 'inf_del', 'inf_del', mut.filtered$mut_type);
 		mut.filtered <- merge(mut.filtered, annotation, by.x='ensembl.gene', by.y='ensembl.gene.id', all.x=T, all.y=F);
 		mut.filtered$gene.id <- as.integer(as.character(mut.filtered$gene.id.y));
-		mut.filtered$symbol <- mut.filtered$symbol.y;
+		mut.filtered$symbol <- ifelse(is.na(mut.filtered$symbol.y), mut.filtered$symbol.x, mut.filtered$symbol.y);
 		write.table(mut.filtered, mut.filtered.file.name, sep='\t', row.names=F, quote=F);
 	}
 	write.table(errors, error.file.name, sep='\t', row.names=F, quote=F);
@@ -187,7 +187,7 @@ parse.aggregated.mut <- function(input.file.name, output.folder='', output.prefi
 	genes.samples <- Reduce(function(...) merge(..., all=T, by=c('symbol', 'type', 'mut_type')), list.genes)
 	write.table(genes.samples, mut.cnt.file.name, sep='\t', row.names=F, quote=F);
 	cat('    mutations by sample', nrow(genes.samples), 'x', ncol(genes.samples)-3, ';');  
-		
+			
 	summary.mut <- aggregate(chr ~ ensembl.gene + symbol + cds.pos + cds.ref + cds.alt + mut_type + prot.pos + prot.ref + prot.alt, data=summary.mut, 'sum');  ## @@@@@@@@ changed gene.id to ensembl.gene
 	summary.mut <- summary.mut[order(-summary.mut$chr), ]
 	write.table(summary.mut, mut.summary.file.name, sep='\t', row.names=F, quote=F);
@@ -624,14 +624,16 @@ compute.spatial.stats <- function(output.folder, output.prefix, bw=5, m=3) {
 				pks <- find_peaks(yy, m=m, bw=bw);
 				pks$pk.start <- xx[pks$pk.start]
 				pks$pk.end <- xx[pks$pk.end]
-				pks.mut <- apply(pks, 1, function(x) { 
-					x1 <- x[1];
-					x2 <- x[2];
+				pks[pks < 0] <- 1
+				pks.mut <- list()
+				for(k in 1:nrow(pks)) { 
+					x1 <- pks[k, 1];
+					x2 <- pks[k, 2];
 					aa <- ifelse(x1-2 < 1, 1, x1-2);
 					bb <- ifelse(x2+2 > max(xx), max(xx), x2+2);
 					i <- which(mut.distr >= aa & mut.distr <= bb); 
-					if (length(i) > 1) return(i); 
-				})
+					if (length(i) > 1) pks.mut[[k]] = i; 
+				}
 				pks.mut.cnt <- unlist(lapply(pks.mut, length));
 				if(length(which(pks.mut.cnt > 0)) > 0) {
 					max.peak.cnt <- max(pks.mut.cnt);
@@ -905,6 +907,35 @@ reformat <- function(output.folder, output.prefix) {
 	write.table(opts.scs, output.file.name, sep='\t', row.names=F, quote=F);
 }
 
+#' Transfer learning to adapt the model trained on human data to mouse data.
+#' @param output.folder: A folder containing a "reformatted.txt" file.
+#' @param output.prefix: A prefix string used to label the files. Transfered model is written to a file "md_transferred.RData".
+#' @alt.fraction: Minimum fraction of missense or nonsense changes in a gene. Only genes passing this threshold are used for transfer learning.
+#' @return NULL
+#' @examples: transfer.rf(output.folder='./examples/', output.prefix='mouse');
+transfer.rf <- function(output.folder, output.prefix, alt.fraction=0.2) {
+	cat('transfer learning ...\n');
+	
+	input.file.name <- paste(output.folder, output.prefix, '.reformatted.txt', sep='');
+	output.file.name <- paste(output.folder, output.prefix, '.md_transferred.RData', sep='');
+	if(nchar(output.prefix) == 0) {
+		input.file.name <- paste(output.folder, 'reformatted.txt', sep='');
+		output.file.name <- paste(output.folder, 'md_transferred.RData', sep='');
+	}
+	all.data <- read.table(input.file.name, sep='\t', header=T, stringsAsFactors=F);
+
+	new.data = all.data[, c('symbol', 'ensembl.gene.id', 'missense.obs.pct', 'truncating.obs.pct', 'max.missense', 'max.nonsense', 'score.peak', 'score.summit', 'max.peak.cnt', 'wt.stop.pct', 'fitch', 'fitch.summit')]
+	colnames(new.data) = c('Symbol', 'Ensembl.gene', 'R.missense', 'R.truncating', 'Sel.missense', 'Sel.truncating', 'R.peak', 'R.summit', 'C.summit', 'R.length', 'E.gene', 'E.summit')
+	rm.row = unique(which(is.na(new.data), arr.ind=T)[, 1])
+	if(length(rm.row) > 0) new.data = new.data[-rm.row, ]
+	new.data = new.data[which(new.data$R.missense > alt.fraction | new.data$R.truncating > alt.fraction), ]
+
+	mod.t_mm_pr = my.rf.transfer(mod.hsp, newdata=new.data[, -c(1:2)], method='prune')
+	mod.t_mm_th = my.rf.transfer(mod.hsp, newdata=new.data[, -c(1:2)], method='threshold', olddata=predictors)
+	mod.t_mm_both = c(mod.t_mm_pr, mod.t_mm_th)
+	save(mod.t_mm_both, file=output.file.name)
+}
+
 #' Predict oncogenes, tumor suppressor genes and passenger genes.
 #' @param output.folder: A folder containing a "reformatted.txt" file.
 #' @param output.prefix: A prefix string used to label the files. Predictions are written to a file "prefix.predictions.txt".
@@ -912,40 +943,41 @@ reformat <- function(output.folder, output.prefix) {
 #' @examples: make.prediction(output.folder='./examples/', output.prefix='TCGA.ACC');
 make.prediction <- function(output.folder, output.prefix) {
 	cat('making predictions ...\n');
+	mod.file.name <- paste(output.folder, output.prefix, '.md_transferred.RData', sep='');
 	input.file.name <- paste(output.folder, output.prefix, '.reformatted.txt', sep='');
 	output.file.name <- paste(output.folder, output.prefix, '.predictions.txt', sep='');
 	if(nchar(output.prefix) == 0) {
+		mod.file.name <- paste(output.folder, 'md_transferred.RData', sep='');
 		input.file.name <- paste(output.folder, 'reformatted.txt', sep='');
 		output.file.name <- paste(output.folder, 'predictions.txt', sep='');
 	}
+	
+	load(mod.file.name)
 	all.data <- read.table(input.file.name, sep='\t', header=T, stringsAsFactors=F);
-	col.sub <- c('missense.obs.pct', 'truncating.obs.pct', 'max.missense', 'max.nonsense', 'score.peak', 'score.summit', 'max.peak.cnt', 'wt.stop.pct', 'fitch', 'fitch.summit')
+	new.data = all.data[, c('symbol', 'ensembl.gene.id', 'missense.obs.pct', 'truncating.obs.pct', 'max.missense', 'max.nonsense', 'score.peak', 'score.summit', 'max.peak.cnt', 'wt.stop.pct', 'fitch', 'fitch.summit')]
+	colnames(new.data) = c('Symbol', 'Ensembl.gene', 'R.missense', 'R.truncating', 'Sel.missense', 'Sel.truncating', 'R.peak', 'R.summit', 'C.summit', 'R.length', 'E.gene', 'E.summit')
 
-	predictors.all <- all.data
-	classes.pred <- predict(md, predictors.all[, col.sub])
-	classes.pred.prob <- predict(md, predictors.all[, col.sub], 'prob')
-	classes.pred.prob.max <- apply(classes.pred.prob, 1, max)
-	colnames(classes.pred.prob) <- c('prob.CIG', 'prob.OG', 'prob.TSG');
-	predictors.all$pred <- classes.pred;
-	predictors.all$pred <- as.character(predictors.all$pred);
-	predictors.all$pred <- ifelse(predictors.all$pred == 'CIG', 'PG', predictors.all$pred);
-	predictors.all <- cbind(predictors.all, classes.pred.prob, 'prob.pred'=classes.pred.prob.max)
-	predictors.all <- merge(predictors.all, cgc.drivers, by='symbol', all.x=T, all.y=F);
-		
-	predictors.all.orig <- predictors.all;
-	dim(predictors.all.orig);  ## 91889
-	predictors.all.orig$cgc.cat <- ifelse(is.na(predictors.all.orig$cgc.cat), 'passenger', as.character(predictors.all.orig$cgc.cat));
-	predictors.all.orig$tumor <- gsub('TCGA.', '', output.prefix);
-#	predictors.all.orig <- merge(unique(annotation[, c('symbol', 'ensembl.gene.id')]), predictors.all.orig, by=c('symbol', 'ensembl.gene.id'), all.x=F, all.y=T);   ## @@@@@@ changed gene.id to ensembl.gene.id
+	pred = my.predict(mod.t_mm_both, newdata=new.data); 
+	pred.all = cbind(all.data, pred[, c('PG', 'OG', 'TSG', 'pred', 'pred.prob')])
+	pred.all = merge(pred.all, orthologs, by.x='symbol', by.y='symbol.mm', all.x=T, all.y=F)
+	pred.all = merge(pred.all, cgc.drivers, by='symbol', all.x=T, all.y=F);		
+	pred.all$human.ortholog = ifelse(is.na(pred.all$symbol.hsp.y), pred.all$symbol.hsp.x, pred.all$symbol.hsp.y)
+	pred.all$human.ortholog = ifelse(is.na(pred.all$human.ortholog), '', pred.all$human.ortholog)
+	pred.all$cgc.cat <- ifelse(is.na(pred.all$cgc.cat), 'passenger', as.character(pred.all$cgc.cat));
+	pred.all$tumor <- gsub('TCGA.', '', output.prefix);
 
-	predictors.output <- predictors.all.orig[, c('symbol', 'ensembl.gene.id', 'tumor', 'syn.obs', 'missense.obs', 'nonsense.obs', 'fs.obs', 'inframe.obs', 'max.missense', 'max.nonsense', 'missense.obs.pct',   'truncating.obs.pct', 'score.peak', 'score.summit', 'max.peak.cnt', 'wt.stop.pct', 'fitch', 'fitch.summit', 'cgc.cat', 'prob.CIG', 'prob.OG', 'prob.TSG', 'pred', 'prob.pred')]
-	colnames(predictors.output) <- c('Symbol', 'Ensembl.gene', 'Tumor', 'Silent', 'Missense', 'Nonsense', 'Indel.fs', 'Indel.inframe', 'Sel.missense', 'Sel.truncating', 'R.missense', 'R.truncating', 'R.peak', 'R.summit', 'C.summit', 'R.length', 'E.gene', 'E.summit', 'CGC.cat', 'PG.prob', 'OG.prob', 'TSG.prob', 'GUST.pred', 'GUST.prob')
-	predictors.output$R.missense <- round(predictors.output$R.missense, 2)
-	predictors.output$R.truncating <- round(predictors.output$R.truncating, 2)
-	predictors.output$R.peak <- round(predictors.output$R.peak, 2)
-	predictors.output$R.summit <- round(predictors.output$R.summit, 2)
-	predictors.output$R.length <- round(predictors.output$R.length, 2)
-	write.table(predictors.output, output.file.name, sep='\t', row.names=F, quote=F);
+	pred.output <- pred.all[, c('symbol', 'ensembl.gene.id', 'tumor', 'syn.obs', 'missense.obs', 'nonsense.obs', 'fs.obs', 'inframe.obs', 'max.missense', 'max.nonsense', 'missense.obs.pct',   'truncating.obs.pct', 'score.peak', 'score.summit', 'max.peak.cnt', 'wt.stop.pct', 'fitch', 'fitch.summit', 'PG', 'OG', 'TSG', 'pred', 'pred.prob', 'human.ortholog', 'cgc.cat')]	
+	colnames(pred.output) <- c('Symbol', 'Ensembl.gene', 'Tumor', 'Silent', 'Missense', 'Nonsense', 'Indel.fs', 'Indel.inframe', 'Sel.missense', 'Sel.truncating', 'R.missense', 'R.truncating', 'R.peak', 'R.summit', 'C.summit', 'R.length', 'E.gene', 'E.summit', 'PG.prob', 'OG.prob', 'TSG.prob', 'GUST.pred', 'GUST.prob', 'Human.Ortholog', 'Human.CGC.cat')
+	pred.output$R.missense <- round(pred.output$R.missense, 2)
+	pred.output$R.truncating <- round(pred.output$R.truncating, 2)
+	pred.output$R.peak <- round(pred.output$R.peak, 2)
+	pred.output$R.summit <- round(pred.output$R.summit, 2)
+	pred.output$R.length <- round(pred.output$R.length, 2)
+	pred.output$PG.prob <- round(pred.output$PG.prob, 3)
+	pred.output$OG.prob <- round(pred.output$OG.prob, 3)
+	pred.output$TSG.prob <- round(pred.output$TSG.prob, 3)
+	pred.output$GUST.prob <- round(pred.output$GUST.prob, 3)
+	write.table(pred.output, output.file.name, sep='\t', row.names=F, quote=F);
 }
 
 #' Retreve somatic mutations of a gene from one or more tumor types.
@@ -995,7 +1027,7 @@ check.gene.mut <- function(gene.symbol, folder, prefix) {
 #' @param steps: A vector of integers indicating which functions to execute. 1-find.outliers(), 2-parse.aggregated.mut(), 3-compute.selection.stats, 4-compute.spatial.stats(), 5-compute.fitch.stats(), 6-append.info(), 7-reformat(), 8-make.prediction(). Default to 1:8.
 #' @return NULL
 #' @examples gust(input.file.name='./examples/TCGA.ACC.mutect.somatic.maf.gz', output.folder='./examples/', output.prefix='TCGA.ACC');
-gust.mouse <- function(input.file.name, output.folder, output.prefix, steps=1:8) {
+gust.mouse <- function(input.file.name, output.folder, output.prefix, alt.fraction=0.2, steps=1:9) {
 	output.folder <- paste(output.folder, '/', sep='');
 	initialize.gust();
 	if(1 %in% steps) {
@@ -1020,6 +1052,9 @@ gust.mouse <- function(input.file.name, output.folder, output.prefix, steps=1:8)
 		reformat(output.folder=output.folder, output.prefix=output.prefix)
 	}
 	if(8 %in% steps) {
+		transfer.rf(output.folder=output.folder, output.prefix=output.prefix, alt.fraction)
+	}
+	if(9 %in% steps) {
 		make.prediction(output.folder=output.folder, output.prefix=output.prefix)
 	}
 }

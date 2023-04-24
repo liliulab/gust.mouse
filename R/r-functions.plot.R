@@ -23,10 +23,10 @@ plot.mut <- function(mut.in.tumor, par=T, bw=5, main='', side=1) {
 
 	for(t in 1:length(tumors)) {
 		this <- mut[which(mut$tumor == tumors[t]), ];
-		y <- max(this$cnt) + 5;
-		plot(0, type='n', xlim=c(1, max.pos), ylim=c(1, y), xlab='', ylab='Frequency', main=main[t], cex.main=2, cex.axis=1.5, cex.lab=1.5, las=1, xaxt='n');
-		axis(side, cex.axis=1.5);
-		mtext(side=side, line=2.5, 'Protein Position', cex=1.5); ## , cex=1.5
+		y <- max(this$cnt) + 15;
+		plot(0, type='n', xlim=c(1, max.pos), ylim=c(1, y), xlab='', ylab='Frequency', main=main[t], cex.main=1.3, cex.axis=1.3, cex.lab=1.3, las=1, xaxt='n');
+		axis(side, cex.axis=1.3);
+		mtext(side=side, line=2.5, 'Protein Position', cex=1.3); ## , cex=1.5
 		
 		missense <-  this[which(this$type == 'missense'), ];
 		if(nrow(missense) > 0) {
@@ -56,8 +56,8 @@ plot.mut <- function(mut.in.tumor, par=T, bw=5, main='', side=1) {
 		y = c(y, 0);
 		par(new=T);
 		plot(x, y*100, type='l', col=alpha('gray30', 0.4), xlim=c(1, max.pos), axes=F, xlab=NA, ylab=NA, lwd=2);
-		axis(4, col.axis='gray30', col.ticks='gray30', cex.axis=1.3, las=1)
-		mtext(side=4, line=3, 'Density', col='gray30', cex=1.5)
+		# axis(4, col.axis='gray30', col.ticks='gray30', cex.axis=1.3, las=1)
+		# mtext(side=4, line=3, 'Density', col='gray30', cex=1.3)
 	}	
 }
 

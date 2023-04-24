@@ -4,7 +4,13 @@
 \alias{gust.mouse}
 \title{Perform GUST classification of oncogens, tumor suppressor genes and passenger genes from exome sequencing data.}
 \usage{
-gust.mouse(input.file.name, output.folder, output.prefix, steps = 1:8)
+gust.mouse(
+  input.file.name,
+  output.folder,
+  output.prefix,
+  alt.fraction = 0.2,
+  steps = 1:9
+)
 }
 \arguments{
 \item{input.file.name:}{A VCF-formatted file to read SnpEff annotated somatic variants. This input file shall contain these fields: Tumor_Sample_Barcode, Chromosome, Start_Position, dbSNP_RS, Reference_Allele, Tumor_Seq_Allele2, FILTER, One_Consequence, Hugo_Symbol, Gene, Feature, ENSP, HGVSc, HGVSp_Short, Amino_acids, Codons, ENSP, RefSeq, Entrez_Gene_Id.}

@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+examples.acc/
+Literatures/
+test/
+*.RData
+*.R
